@@ -204,6 +204,10 @@ ui <- tagList(
 # =========================================================
 # save
 # =========================================================
-save_html(ui, file = out_html)
+htmltools::save_html(
+  ui,
+  file = out_html,
+  selfcontained = TRUE
+)
 
 cat("Saved:", out_html, "\n")
