@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libuv1-dev \
     dos2unix \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* 
 
 # CRAN packages
 RUN R -e "install.packages(c('dplyr','tidyr','DT','htmlwidgets','htmltools'), repos='https://cloud.r-project.org')"
