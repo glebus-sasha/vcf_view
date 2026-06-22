@@ -1,50 +1,42 @@
-FROM rocker/r-ver:4.3.2
+FROM rocker/r-ver:4.5.1
 
-# --- System dependencies ---
+# System dependencies
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libxml2-dev \
     libssl-dev \
-    libglpk-dev \
     dos2unix \
-    pandoc \
     && rm -rf /var/lib/apt/lists/*
 
-# --- CRAN packages ---
+# CRAN packages
 RUN R -e "install.packages(c(
-  'dplyr',
-  'tidyr',
-  'stringr',
-  'readr',
-  'ggplot2',
-  'plotly',
-  'htmlwidgets',
-  'htmltools',
-  'optparse',
-  'RobustRankAggreg'
+    'dplyr',
+    'tidyr',
+    'DT',
+    'htmlwidgets',
+    'htmltools'
 ), repos='https://cloud.r-project.org')"
 
-# --- Bioconductor packages ---
-RUN R -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install(c(
-  'EnhancedVolcano',
-  'WebGestaltR',
-  'vcfR'
-), update=FALSE, ask=FALSE)"
+# Bioconductor package
+RUN R -e \"\
+    if (!requireNamespace('BiocManager', quietly = TRUE)) \
+        install.packages('BiocManager', repos='https://cloud.r-project.org'); \
+    BiocManager::install('vcfR', update = FALSE, ask = FALSE) \
+\"
 
-# --- scripts directory ---
+# Scripts
 RUN mkdir -p /usr/local/my-scripts
 COPY scripts/ /usr/local/my-scripts/
 
-# --- permissions + CRLF fix ---
-RUN chmod +x /usr/local/my-scripts/*.R && dos2unix /usr/local/my-scripts/*.R
+# Permissions + CRLF fix
+RUN chmod +x /usr/local/my-scripts/*.R && \
+    dos2unix /usr/local/my-scripts/*.R
 
-# --- symlinks (run without .R) ---
+# Symlinks
 RUN for f in /usr/local/my-scripts/*.R; do \
     ln -s "$f" "/usr/local/bin/$(basename ${f%.R})"; \
 done
 
-# --- working dir ---
 WORKDIR /usr/local/my-scripts
 
-# --- default shell ---
 ENTRYPOINT ["/bin/bash"]
