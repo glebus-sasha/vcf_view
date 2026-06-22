@@ -5,10 +5,10 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libxml2-dev \
     libssl-dev \
+    libuv1-dev \
     dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
-# CRAN packages
 # CRAN packages
 RUN R -e "install.packages(c('dplyr','tidyr','DT','htmlwidgets','htmltools'), repos='https://cloud.r-project.org')"
 
