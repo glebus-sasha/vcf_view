@@ -1,0 +1,65 @@
+# === R/RStudio Specific ===
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+*.rdb
+*.rdx
+
+# === Development & Build Artifacts ===
+.git/
+.gitignore
+.gitattributes
+.github/
+.idea/
+.vscode/
+*_backup/
+backup/
+
+# === Data Directories (exclude unless needed) ===
+raw/
+results/
+data/
+output/
+temp/
+tmp/
+
+# === System & IDE Files ===
+.DS_Store
+Thumbs.db
+*.swp
+*~
+*.swo
+*.un~
+*.orig
+
+# === Logs & Cache ===
+*.log
+logs/
+.cache/
+.cran/
+
+# === Package Management ===
+packrat/
+renv/
+.Renviron
+.Rprofile
+
+# === Docker Specific ===
+.dockerignore
+Dockerfile
+docker-compose.yml
+docker-compose.yaml
+.docker/
+
+# === Documentation ===
+README.html
+*.pdf
+*.tex
+*.aux
+
+# === Temporary Files ===
+*.tmp
+*.temp
+*.bak
