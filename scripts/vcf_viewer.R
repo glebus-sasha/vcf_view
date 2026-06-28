@@ -16,6 +16,10 @@ suppressPackageStartupMessages({
 #   "raw/R_PTA_22_2.vcf",
 #   "raw/R_PTA_22.vcf",
 #   "raw/symbol_list_wes_3.txt",
+#   "-f 'PASS' -i '(AD[*:1] > 4) || (DP > 80)'",
+#   "-f 'PASS' -i '(AD[*:1] > 4) && ((AD[*:1]/AD[*:0] > 0.05) || (DP > 80))'",
+#   "(SYMBOL in symbol_list_wes_3.txt) and (IMPACT is HIGH or IMPACT is MODERATE)",
+#   "(not SYMBOL in symbol_list_wes_3.txt) and (MAX_AF < 0.001 or not MAX_AF) and (IMPACT is HIGH)",
 #   "vcf_output.html"
 # )
 
@@ -24,18 +28,35 @@ suppressPackageStartupMessages({
 # =========================================================
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) < 3) {
+if (length(args) != 8) {
   stop(
-    "Usage:\n",
-    "Rscript vcf_viewer.R <vcf1> <vcf2> [gene_list] <out_html>\n"
+    paste(
+      "Usage:",
+      "Rscript vcf_viewer.R",
+      "<special.vcf>",
+      "<other.vcf>",
+      "<gene_list>",
+      "<bcftools_filter_special>",
+      "<bcftools_filter_other>",
+      "<vep_filter_special>",
+      "<vep_filter_other>",
+      "<output.html>"
+    )
   )
 }
 
 vcf_path1 <- args[1]
 vcf_path2 <- args[2]
 
-gene_list_path <- if (length(args) == 4) args[3] else NA
-out_html <- args[length(args)]
+gene_list_path <- args[3]
+
+bcftools_filter_special <- args[4]
+bcftools_filter_other   <- args[5]
+
+vep_filter_special <- args[6]
+vep_filter_other   <- args[7]
+
+out_html <- args[8]
 
 # =========================================================
 # gene list
@@ -51,20 +72,6 @@ gene_list_str <- if (!is.null(gene_list)) {
   paste(gene_list, collapse = ", ")
 } else {
   "No gene filter provided"
-}
-
-# =========================================================
-# helper: bcftools command
-# =========================================================
-get_bcftools_cmd <- function(path) {
-  vcf <- read.vcfR(path, verbose = FALSE)
-  meta <- vcf@meta
-  
-  cmd <- grep("##bcftools_viewCommand", meta, value = TRUE)
-  
-  if (length(cmd) == 0) return("No bcftools command found")
-  
-  sub("^##bcftools_viewCommand=", "", cmd)
 }
 
 # =========================================================
@@ -152,11 +159,6 @@ make_vcf_table <- function(path, gene_filter = NULL) {
   )
 }
 
-# =========================================================
-# load commands (IMPORTANT FIX)
-# =========================================================
-cmd1 <- get_bcftools_cmd(vcf_path1)
-cmd2 <- get_bcftools_cmd(vcf_path2)
 
 # =========================================================
 # tables
@@ -172,31 +174,93 @@ ui <- tagList(
   h2("VCF Viewer"),
   
   tags$div(
-    style = "padding:10px; background:#f5f5f5;",
+    style = "padding:10px; background:#f5f5f5; margin-bottom:15px;",
     tags$b("Gene list (selected genes): "),
     gene_list_str
   ),
   
   tags$ul(
     class = "nav nav-tabs",
-    tags$li(class = "active",
-            tags$a(href = "#tab1", `data-toggle` = "tab", "selected genes")),
     tags$li(
-      tags$a(href = "#tab2", `data-toggle` = "tab", "other genes"))
+      class = "active",
+      tags$a(href = "#tab1", `data-toggle` = "tab", "Selected genes")
+    ),
+    tags$li(
+      tags$a(href = "#tab2", `data-toggle` = "tab", "Other genes")
+    )
   ),
   
   tags$div(class = "tab-content",
            
-           tags$div(class = "tab-pane active", id = "tab1",
-                    tags$h4("bcftools command (VCF1)"),
-                    tags$pre(cmd1),
-                    tbl1
+           # =========================
+           # TAB 1 - SELECTED GENES
+           # =========================
+           tags$div(
+             class = "tab-pane active",
+             id = "tab1",
+             
+             tags$div(
+               style = "
+          border: 2px solid #4CAF50;
+          border-radius: 8px;
+          padding: 12px;
+          margin-top: 10px;
+          background: #f6fff6;
+        ",
+               
+               tags$h3("🧬 Selected genes block"),
+               
+               tags$h4("Gene list"),
+               tags$pre(gene_list_str),
+               
+               tags$h4("bcftools filter (selected)"),
+               tags$pre(bcftools_filter_special),
+               
+               tags$h4("VEP filter (selected)"),
+               tags$pre(vep_filter_special),
+               
+               tags$hr(),
+               
+               tags$h4("Variants table (selected genes)"),
+               tbl1
+             )
            ),
            
-           tags$div(class = "tab-pane", id = "tab2",
-                    tags$h4("bcftools command (VCF2)"),
-                    tags$pre(cmd2),
-                    tbl2
+           # =========================
+           # TAB 2 - OTHER GENES
+           # =========================
+           tags$div(
+             class = "tab-pane",
+             id = "tab2",
+             
+             tags$div(
+               style = "
+          border: 2px solid #FF9800;
+          border-radius: 8px;
+          padding: 12px;
+          margin-top: 10px;
+          background: #fffaf3;
+        ",
+               
+               tags$h3("🧬 Other genes block"),
+               
+               tags$h4("Gene list (implicit)"),
+               tags$div(
+                 style = "color:#666;",
+                 "Everything NOT in selected gene list"
+               ),
+               
+               tags$h4("bcftools filter (other)"),
+               tags$pre(bcftools_filter_other),
+               
+               tags$h4("VEP filter (other)"),
+               tags$pre(vep_filter_other),
+               
+               tags$hr(),
+               
+               tags$h4("Variants table (other genes)"),
+               tbl2
+             )
            )
   )
 )
@@ -206,8 +270,7 @@ ui <- tagList(
 # =========================================================
 htmltools::save_html(
   ui,
-  file = out_html,
-  selfcontained = TRUE
+  file = out_html
 )
 
 cat("Saved:", out_html, "\n")
