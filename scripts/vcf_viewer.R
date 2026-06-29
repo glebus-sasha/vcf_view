@@ -12,21 +12,21 @@ suppressPackageStartupMessages({
 # =========================================================
 # DEBUG MODE (comment out in production)
 # =========================================================
-args <- c(
-  "raw/R_PTA_22_2.vcf",
-  "raw/R_PTA_22.vcf",
-  "raw/symbol_list_wes_3.txt",
-  "-f 'PASS' -i '(AD[*:1] > 4) || (DP > 80)'",
-  "-f 'PASS' -i '(AD[*:1] > 4) && ((AD[*:1]/AD[*:0] > 0.05) || (DP > 80))'",
-  "(SYMBOL in symbol_list_wes_3.txt) and (IMPACT is HIGH or IMPACT is MODERATE)",
-  "(not SYMBOL in symbol_list_wes_3.txt) and (MAX_AF < 0.001 or not MAX_AF) and (IMPACT is HIGH)",
-  "vcf_output.html"
-)
+# args <- c(
+#   "raw/R_PTA_1_special.vcf",
+#   "raw/R_PTA_1_other.vcf",
+#   "raw/symbol_list_wes_3.txt",
+#   "-f 'PASS' -i '(AD[*:1] > 4) || (DP > 80)'",
+#   "-f 'PASS' -i '(AD[*:1] > 4) && ((AD[*:1]/AD[*:0] > 0.05) || (DP > 80))'",
+#   "(SYMBOL in symbol_list_wes_3.txt) and (IMPACT is HIGH or IMPACT is MODERATE)",
+#   "(not SYMBOL in symbol_list_wes_3.txt) and (MAX_AF < 0.001 or not MAX_AF) and (IMPACT is HIGH)",
+#   "vcf_output.html"
+# )
 
 # =========================================================
 # CLI MODE (uncomment in production)
 # =========================================================
-# args <- commandArgs(trailingOnly = TRUE)
+args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) != 8) {
   stop(
