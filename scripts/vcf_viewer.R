@@ -10,23 +10,23 @@ suppressPackageStartupMessages({
 })
 
 # =========================================================
-# DEBUG MODE
+# DEBUG MODE (comment out in production)
 # =========================================================
-# args <- c(
-#   "raw/R_PTA_22_2.vcf",
-#   "raw/R_PTA_22.vcf",
-#   "raw/symbol_list_wes_3.txt",
-#   "-f 'PASS' -i '(AD[*:1] > 4) || (DP > 80)'",
-#   "-f 'PASS' -i '(AD[*:1] > 4) && ((AD[*:1]/AD[*:0] > 0.05) || (DP > 80))'",
-#   "(SYMBOL in symbol_list_wes_3.txt) and (IMPACT is HIGH or IMPACT is MODERATE)",
-#   "(not SYMBOL in symbol_list_wes_3.txt) and (MAX_AF < 0.001 or not MAX_AF) and (IMPACT is HIGH)",
-#   "vcf_output.html"
-# )
+args <- c(
+  "raw/R_PTA_22_2.vcf",
+  "raw/R_PTA_22.vcf",
+  "raw/symbol_list_wes_3.txt",
+  "-f 'PASS' -i '(AD[*:1] > 4) || (DP > 80)'",
+  "-f 'PASS' -i '(AD[*:1] > 4) && ((AD[*:1]/AD[*:0] > 0.05) || (DP > 80))'",
+  "(SYMBOL in symbol_list_wes_3.txt) and (IMPACT is HIGH or IMPACT is MODERATE)",
+  "(not SYMBOL in symbol_list_wes_3.txt) and (MAX_AF < 0.001 or not MAX_AF) and (IMPACT is HIGH)",
+  "vcf_output.html"
+)
 
 # =========================================================
 # CLI MODE (uncomment in production)
 # =========================================================
-args <- commandArgs(trailingOnly = TRUE)
+# args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) != 8) {
   stop(
@@ -63,90 +63,129 @@ out_html <- args[8]
 # =========================================================
 gene_list <- NULL
 
-if (!is.na(gene_list_path)) {
+if (!is.na(gene_list_path) && file.exists(gene_list_path)) {
   gene_list <- readLines(gene_list_path)
   gene_list <- gene_list[gene_list != ""]
 }
 
-gene_list_str <- if (!is.null(gene_list)) {
+gene_list_str <- if (!is.null(gene_list) && length(gene_list) > 0) {
   paste(gene_list, collapse = ", ")
 } else {
   "No gene filter provided"
 }
 
 # =========================================================
-# VCF parser
+# VCF parser – safe version with empty handling
 # =========================================================
 make_vcf_table <- function(path, gene_filter = NULL) {
   
-  vcf <- read.vcfR(path, verbose = FALSE)
-  df <- as.data.frame(vcf@fix)
+  # ---- file existence ----
+  if (!file.exists(path)) {
+    msg <- data.frame(Message = paste("VCF file not found:", path))
+    return(datatable(msg, rownames = FALSE, options = list(dom = 't', ordering = FALSE)))
+  }
   
-  # INFO
-  df$DP_INFO <- suppressWarnings(as.numeric(vcfR::extract.info(vcf, "DP")))
+  # ---- read VCF ----
+  vcf <- tryCatch({
+    read.vcfR(path, verbose = FALSE)
+  }, error = function(e) {
+    NULL
+  })
   
-  # FORMAT
-  GT  <- vcfR::extract.gt(vcf, "GT")[, 1]
-  GQ  <- vcfR::extract.gt(vcf, "GQ")[, 1]
-  DP  <- vcfR::extract.gt(vcf, "DP")[, 1]
-  AD  <- vcfR::extract.gt(vcf, "AD")[, 1]
-  VAF <- vcfR::extract.gt(vcf, "VAF")[, 1]
-  PL  <- vcfR::extract.gt(vcf, "PL")[, 1]
+  if (is.null(vcf) || length(vcf@fix) == 0 || nrow(vcf@fix) == 0) {
+    msg <- data.frame(Message = "VCF file is empty or could not be parsed.")
+    return(datatable(msg, rownames = FALSE, options = list(dom = 't', ordering = FALSE)))
+  }
   
-  df$GT <- GT
-  df$GQ <- suppressWarnings(as.numeric(GQ))
-  df$DP <- suppressWarnings(as.numeric(DP))
-  df$VAF <- suppressWarnings(as.numeric(VAF))
-  df$PL <- PL
+  df <- as.data.frame(vcf@fix, stringsAsFactors = FALSE)
+  if (nrow(df) == 0) {
+    msg <- data.frame(Message = "No variant records in VCF.")
+    return(datatable(msg, rownames = FALSE, options = list(dom = 't', ordering = FALSE)))
+  }
   
-  # AD split
-  ad_split <- strsplit(AD, ",")
+  # ---- extract INFO fields ----
+  dp_info <- tryCatch(vcfR::extract.info(vcf, "DP"), error = function(e) rep(NA, nrow(df)))
+  df$DP_INFO <- suppressWarnings(as.numeric(dp_info))
   
-  df$AD_REF <- suppressWarnings(as.numeric(sapply(ad_split, `[`, 1)))
-  df$AD_ALT <- suppressWarnings(as.numeric(sapply(ad_split, function(x)
-    if(length(x) >= 2) x[2] else NA
-  )))
+  # ---- extract FORMAT fields (first sample only) ----
+  gt <- tryCatch(vcfR::extract.gt(vcf, "GT")[, 1], error = function(e) rep(NA, nrow(df)))
+  gq <- tryCatch(vcfR::extract.gt(vcf, "GQ")[, 1], error = function(e) rep(NA, nrow(df)))
+  dp <- tryCatch(vcfR::extract.gt(vcf, "DP")[, 1], error = function(e) rep(NA, nrow(df)))
+  ad <- tryCatch(vcfR::extract.gt(vcf, "AD")[, 1], error = function(e) rep(NA, nrow(df)))
+  vaf <- tryCatch(vcfR::extract.gt(vcf, "VAF")[, 1], error = function(e) rep(NA, nrow(df)))
+  pl <- tryCatch(vcfR::extract.gt(vcf, "PL")[, 1], error = function(e) rep(NA, nrow(df)))
   
-  # HGVS
+  df$GT <- gt
+  df$GQ <- suppressWarnings(as.numeric(gq))
+  df$DP <- suppressWarnings(as.numeric(dp))
+  df$VAF <- suppressWarnings(as.numeric(vaf))
+  df$PL <- pl
+  
+  # ---- AD split ----
+  if (!all(is.na(ad))) {
+    ad_split <- strsplit(ad, ",")
+    df$AD_REF <- suppressWarnings(as.numeric(sapply(ad_split, `[`, 1)))
+    df$AD_ALT <- suppressWarnings(as.numeric(sapply(ad_split, function(x) if (length(x) >= 2) x[2] else NA)))
+  } else {
+    df$AD_REF <- NA
+    df$AD_ALT <- NA
+  }
+  
+  # ---- HGVS ----
   df$HGVS <- paste0(df$CHROM, ":g.", df$POS, df$REF, ">", df$ALT)
   
-  # CSQ
+  # ---- CSQ parsing (safe, keeps all rows) ----
   csq_header <- grep("##INFO=<ID=CSQ", vcf@meta, value = TRUE)
   
   if (length(csq_header) > 0) {
     csq_header <- strsplit(csq_header, "Format: ")[[1]][2]
     csq_cols <- strsplit(csq_header, "\\|")[[1]]
     
-    df <- df %>%
-      mutate(
-        CSQ_split = strsplit(INFO, ";") %>%
-          lapply(function(x) {
-            csq <- grep("^CSQ=", x, value = TRUE)
-            if (length(csq) == 0) return(NA)
-            sub("^CSQ=", "", csq)
-          })
-      ) %>%
-      unnest(CSQ_split) %>%
-      separate(CSQ_split, into = csq_cols, sep = "\\|", fill = "right", extra = "drop")
+    # Extract first CSQ entry per variant (if multiple, take the first)
+    df$CSQ_raw <- sapply(df$INFO, function(x) {
+      csq <- grep("^CSQ=", strsplit(x, ";")[[1]], value = TRUE)
+      if (length(csq) == 0) return(NA_character_)
+      sub("^CSQ=", "", csq[1])
+    })
+    
+    # Split into columns
+    csq_split <- strsplit(df$CSQ_raw, "\\|")
+    csq_df <- do.call(rbind, lapply(csq_split, function(x) {
+      if (length(x) < length(csq_cols)) {
+        x <- c(x, rep(NA, length(csq_cols) - length(x)))
+      }
+      x[1:length(csq_cols)]
+    }))
+    colnames(csq_df) <- csq_cols
+    csq_df <- as.data.frame(csq_df, stringsAsFactors = FALSE)
+    
+    # Bind to original df (row order preserved)
+    df <- cbind(df, csq_df)
+    df$CSQ_raw <- NULL  # remove temporary column
   }
   
-  # gene grouping
+  # ---- group assignment ----
   if (!is.null(gene_filter) && "SYMBOL" %in% colnames(df)) {
-    df$group <- ifelse(df$SYMBOL %in% gene_filter,
-                       "selected genes",
-                       "other genes")
+    df$group <- ifelse(df$SYMBOL %in% gene_filter, "selected genes", "other genes")
   } else {
     df$group <- "all"
   }
   
+  # ---- select relevant columns ----
   keep_cols <- c(
-    "HGVS","DP","AD_REF","AD_ALT","VAF","QUAL",
-    "Consequence","IMPACT","SYMBOL","Gene",
-    "gnomADe_AF","CLIN_SIG","PUBMED","group"
+    "HGVS", "DP", "AD_REF", "AD_ALT", "VAF", "QUAL",
+    "Consequence", "IMPACT", "SYMBOL", "Gene",
+    "gnomADe_AF", "CLIN_SIG", "PUBMED", "group"
   )
   
   df_small <- df %>% select(any_of(keep_cols))
   
+  if (nrow(df_small) == 0) {
+    msg <- data.frame(Message = "No variants remain after filtering / parsing.")
+    return(datatable(msg, rownames = FALSE, options = list(dom = 't', ordering = FALSE)))
+  }
+  
+  # ---- return interactive table ----
   datatable(
     df_small,
     filter = "top",
@@ -159,9 +198,8 @@ make_vcf_table <- function(path, gene_filter = NULL) {
   )
 }
 
-
 # =========================================================
-# tables
+# generate tables (with empty protection)
 # =========================================================
 tbl1 <- make_vcf_table(vcf_path1, gene_list)
 tbl2 <- make_vcf_table(vcf_path2, NULL)
@@ -266,7 +304,7 @@ ui <- tagList(
 )
 
 # =========================================================
-# save
+# save HTML
 # =========================================================
 htmltools::save_html(
   ui,
