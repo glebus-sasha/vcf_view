@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libssl-dev \
     libuv1-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
     dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
