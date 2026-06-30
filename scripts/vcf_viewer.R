@@ -31,7 +31,6 @@ args <- commandArgs(trailingOnly = TRUE)
 #   "vcf_output.html"
 # )
 
-
 if (length(args) != 9) {
   stop(
     paste(
