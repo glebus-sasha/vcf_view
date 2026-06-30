@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
 # CRAN packages
 RUN R -e "install.packages(c('dplyr','tidyr','DT','htmlwidgets','htmltools', 'permute'), repos='https://cloud.r-project.org')"
 
-# Bioconductor package
-RUN R -e "if (!requireNamespace('BiocManager', quietly = TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install('vcfR', update = FALSE, ask = FALSE)"
+# Bioconductor packages
+RUN R -e "if (!requireNamespace('BiocManager', quietly = TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org'); BiocManager::install(c('vcfR', 'GenomicRanges', 'rtracklayer'), update = FALSE, ask = FALSE)"
 
 # Scripts
 RUN mkdir -p /usr/local/my-scripts
